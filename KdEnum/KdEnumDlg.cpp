@@ -12,6 +12,11 @@
 #include	<winsvc.h>
 #include	<TlHelp32.h>
 #include	"def.h"
+#include	"include/json/json.h"
+#include	<string>
+#include	<iostream>
+#include	<fstream>
+#include	<map>
 #ifdef _DEBUG
 #define new DEBUG_NEW
 #endif
@@ -111,8 +116,9 @@ BOOL CKdEnumDlg::OnInitDialog()
 	SetIcon(m_hIcon, FALSE);		// 设置小图标
 
 	// TODO: 在此添加额外的初始化代码
-	initList();
-	initExportFunc();
+	StartUp();
+	ReloadMenuIndex();
+	InitResource();
 	EnumProcess();
 	return TRUE;  // 除非将焦点设置到控件，否则返回 TRUE
 }
@@ -166,78 +172,198 @@ HCURSOR CKdEnumDlg::OnQueryDragIcon()
 	return static_cast<HCURSOR>(m_hIcon);
 }
 
-void CKdEnumDlg::initList()
+void CKdEnumDlg::InitResource()
 {
+	using namespace std;
+	map<char*, int>::iterator	it;
+	//初始化表格
 	m_list.SetExtendedStyle(LVS_EX_GRIDLINES | LVS_EX_FULLROWSELECT);
-	m_list.InsertColumn(0, L"进程名", 0, 130);
-	m_list.InsertColumn(1, L"进程id", 0, 50);
-	m_list.InsertColumn(2, L"父进程id", 0, 60);
-	m_list.InsertColumn(3, L"优先级", 0, 50);
-	m_list.InsertColumn(4, L"线程数量", 0, 60);
-	m_list.InsertColumn(5, L"文件路径", 0, 300);
+	if (g_EnableFlag.Enable_ProcessName)
+	{
+		it = MenuIndex.find("Enable_ProcessName");
+		m_list.InsertColumn(it->second, L"进程名", 0, 130);
+	}
+	if (g_EnableFlag.Enable_ProcessId)
+	{
+		it = MenuIndex.find("Enable_ProcessId");
+		m_list.InsertColumn(it->second, L"进程id", 0, 50);
+	}
+	if (g_EnableFlag.Enable_ParentId)
+	{
+		it = MenuIndex.find("Enable_ParentId");
+		m_list.InsertColumn(it->second, L"父进程id", 0, 60);
+	}
+	if (g_EnableFlag.Enable_Priority)
+	{
+		it = MenuIndex.find("Enable_Priority");
+		m_list.InsertColumn(it->second, L"优先级", 0, 50);
+	}
+	if (g_EnableFlag.Enable_ThreadNums)
+	{
+		it = MenuIndex.find("Enable_ThreadNums");
+		m_list.InsertColumn(it->second, L"线程数量", 0, 60);
+	}
+	if (g_EnableFlag.Enable_Debugport)
+	{
+		it = MenuIndex.find("Enable_Debugport");
+		m_list.InsertColumn(it->second, L"DebugPort", 0, 80);
+	}
+	if (g_EnableFlag.Enable_ProcessPath)
+	{
+		it = MenuIndex.find("Enable_ProcessPath");
+		m_list.InsertColumn(it->second, L"文件路径", 0, 300);
+	}
+	
+	m_Menu.LoadMenuW(IDR_MENU2);
+	SetMenu(&m_Menu);
 }
 
-VOID CKdEnumDlg::initExportFunc()
+VOID CKdEnumDlg::StartUp()
 {
-	HMODULE	hModule = LoadLibrary(L"ntdll.dll");
-	if (hModule == INVALID_HANDLE_VALUE)
-	{
-		CKdEnumDlg::InitExportFun = FALSE;
-	}
-	CKdEnumDlg::ZwQueryInformationProcess = (PFN_ZwQueryInformationProcess)GetProcAddress(hModule, "ZwQueryInformationProcess");
-	if (ZwQueryInformationProcess == 0)
-	{
-		CKdEnumDlg::InitExportFun = FALSE;
+	if (SHGetFolderPath(NULL, CSIDL_APPDATA, NULL, 0, g_Global.AppdataPath) == S_OK) {
+		HANDLE	hFile = NULL;
+		wsprintf(g_Global.ConfigFilePath, L"%ws\\kdEnum\\config.json", g_Global.AppdataPath);
+		wsprintf(g_Global.ConfigPath, L"%ws\\kdEnum", g_Global.AppdataPath);
+		hFile=CreateFile(g_Global.ConfigFilePath, GENERIC_READ | GENERIC_WRITE,
+			FILE_SHARE_DELETE | FILE_SHARE_READ, NULL, OPEN_EXISTING,  FILE_ATTRIBUTE_NORMAL,NULL);
+		if (hFile==INVALID_HANDLE_VALUE)
+		{//第一次打开程序
+			CreateDirectory(g_Global.ConfigPath, NULL);
+			hFile = CreateFile(g_Global.ConfigFilePath, GENERIC_READ | GENERIC_WRITE,
+				FILE_SHARE_DELETE | FILE_SHARE_READ, NULL, CREATE_NEW, FILE_ATTRIBUTE_NORMAL, NULL);
+			DWORD	ret = 0;
+			WriteFile(hFile, g_Global.DefaultConfig, strlen(g_Global.DefaultConfig), &ret, 0);
+			if (ret>strlen(g_Global.DefaultConfig))
+			{
+				int a = 0;
+				a = strlen(g_Global.DefaultConfig);
+				return;
+			}
+		}
+		//加载config.json
+		Json::Reader	reader;
+		Json::Value	root;
+		using namespace std;
+		std::ifstream	file;
+		file.open(g_Global.ConfigFilePath, ios::in);
+		if (file.is_open())
+		{//文件流已经打开
+			if (reader.parse(file, root, false)) {
+				g_EnableFlag.Enable_Debugport = root["settings"]["Enable_Debugport"].asBool();
+				g_EnableFlag.Enable_ParentId = root["settings"]["Enable_ParentId"].asBool();
+				g_EnableFlag.Enable_Priority = root["settings"]["Enable_Priority"].asBool();
+				g_EnableFlag.Enable_ProcessId = root["settings"]["Enable_ProcessId"].asBool();
+				g_EnableFlag.Enable_ProcessName = root["settings"]["Enable_ProcessName"].asBool();
+				g_EnableFlag.Enable_ProcessPath = root["settings"]["Enable_ProcessPath"].asBool();
+				g_EnableFlag.Enable_ThreadNums = root["settings"]["Enable_ThreadNums"].asBool();
 
+				g_EnableFlag.DriverMode = root["mode"]["DriverMode"].asBool();
+				g_EnableFlag.UserMode = root["mode"]["UserMode"].asBool();
+				g_EnableFlag.NtQueryProcessInformation = root["mode"]["NtQueryProcessInformation"].asBool();
+
+				g_EnableFlag.DebugPortOffset = root["offset"]["DebugPortOffset"].asInt();
+				g_EnableFlag.ProcessNameOffset = root["offset"]["ProcessNameOffset"].asInt();
+
+			}
+		}
+	}
+	return ;
+}
+
+VOID CKdEnumDlg::ReloadMenuIndex()
+{
+	int i = 0;
+	if (g_EnableFlag.Enable_ProcessName)
+	{
+		MenuIndex.insert(std::pair<char*, int>("Enable_ProcessName",i));
+		i++;
+	}
+	if (g_EnableFlag.Enable_ProcessId)
+	{
+		MenuIndex.insert(std::pair<char*, int>("Enable_ProcessId", i));
+		i++;
+	}
+	if (g_EnableFlag.Enable_ParentId)
+	{
+		MenuIndex.insert(std::pair<char*, int>("Enable_ParentId", i));
+		i++;
+	}
+	if (g_EnableFlag.Enable_Priority)
+	{
+		MenuIndex.insert(std::pair<char*, int>("Enable_Priority", i));
+		i++;
+	}
+	if (g_EnableFlag.Enable_ProcessName)
+	{
+		MenuIndex.insert(std::pair<char*, int>("Enable_ProcessName", i));
+		i++;
+	}
+	if (g_EnableFlag.Enable_ThreadNums)
+	{
+		MenuIndex.insert(std::pair<char*, int>("Enable_ThreadNums", i));
+		i++;
+	}
+	if (g_EnableFlag.Enable_Debugport)
+	{
+		MenuIndex.insert(std::pair<char*, int>("Enable_Debugport", i));
+		i++;
 	}
 
-	CKdEnumDlg::InitExportFun = TRUE;
+	if (g_EnableFlag.Enable_ProcessPath)
+	{
+		MenuIndex.insert(std::pair<char*, int>("Enable_ProcessPath", i));
+		i++;
+	}
+
+	return VOID();
 }
 
 BOOL CKdEnumDlg::EnumProcess()
 {
-
-	PROCESSENTRY32	PeEntry = { 0 };
-	HANDLE	hSnap = NULL;
-	PeEntry.dwSize = sizeof(PROCESSENTRY32);
-	hSnap = CreateToolhelp32Snapshot(TH32CS_SNAPPROCESS, 0);
-	if (hSnap == INVALID_HANDLE_VALUE)
+	if (g_EnableFlag.UserMode)
 	{
-		return	FALSE;
+		PROCESSENTRY32	PeEntry = { 0 };
+		HANDLE	hSnap = NULL;
+		PeEntry.dwSize = sizeof(PROCESSENTRY32);
+		hSnap = CreateToolhelp32Snapshot(TH32CS_SNAPPROCESS, 0);
+		if (hSnap == INVALID_HANDLE_VALUE)
+		{
+			return	FALSE;
+		}
+		BOOL ret = Process32First(hSnap, &PeEntry);
+		WCHAR cntThreads[MAX_PATH], pcPriClassBase[MAX_PATH], \
+			ProcessId[MAX_PATH], th32ParentProcessID[MAX_PATH], ProcessName[MAX_PATH];
+		WCHAR	processpath[MAX_PATH];
+		ULONG	index = 0;
+		while (ret)
+		{
+			wsprintf(cntThreads, L"%d", PeEntry.cntThreads);
+			wsprintf(pcPriClassBase, L"%d", PeEntry.pcPriClassBase);
+			wsprintf(ProcessId, L"%d", PeEntry.th32ProcessID);
+			wsprintf(th32ParentProcessID, L"%d", PeEntry.th32ParentProcessID);
+			m_list.InsertItem(index, PeEntry.szExeFile);
+			m_list.SetItemText(index, 1, ProcessId);
+			m_list.SetItemText(index, 2, th32ParentProcessID);
+			m_list.SetItemText(index, 3, pcPriClassBase);
+			m_list.SetItemText(index, 4, cntThreads);
+			GetModulePath(PeEntry.th32ProcessID, processpath);
+			m_list.SetItemText(index, 5, processpath);
+			index++;
+			ret = Process32Next(hSnap, &PeEntry);
+		}
+		return	TRUE;
 	}
-	BOOL ret = Process32First(hSnap, &PeEntry);
-	WCHAR cntThreads[MAX_PATH], pcPriClassBase[MAX_PATH], \
-		ProcessId[MAX_PATH], th32ParentProcessID[MAX_PATH], ProcessName[MAX_PATH];
-	WCHAR	processpath[MAX_PATH];
-	ULONG	index = 0;
-	while (ret)
+	if (g_EnableFlag.DriverMode)
 	{
-		wsprintf(cntThreads, L"%d", PeEntry.cntThreads);
-		wsprintf(pcPriClassBase, L"%d", PeEntry.pcPriClassBase);
-		wsprintf(ProcessId, L"%d", PeEntry.th32ProcessID);
-		wsprintf(th32ParentProcessID, L"%d", PeEntry.th32ParentProcessID);
-		m_list.InsertItem(index, PeEntry.szExeFile);
-		m_list.SetItemText(index, 1, ProcessId);
-		m_list.SetItemText(index, 2, th32ParentProcessID);
-		m_list.SetItemText(index, 3, pcPriClassBase);
-		m_list.SetItemText(index, 4, cntThreads);
-		GetModulePath(PeEntry.th32ProcessID, processpath);
-		m_list.SetItemText(index, 5, processpath);
-		index++;
-		ret = Process32Next(hSnap, &PeEntry);
+
+		return	TRUE;
 	}
-	return	TRUE;
+	if (g_EnableFlag.NtQueryProcessInformation)
+	{
+		return	TRUE;
+	}
 }
 
-VOID CKdEnumDlg::InsertList()
-{
-}
-
-ULONG CKdEnumDlg::LookupDebugPort(ULONG pid)
-{
-
-	return 0;
-}
 
 BOOL CKdEnumDlg::GetModulePath(ULONG pid, WCHAR path[])
 {

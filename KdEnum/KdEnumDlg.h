@@ -4,7 +4,7 @@
 
 #pragma once
 #include "def.h"
-
+#include	<map>
 
 // CKdEnumDlg 对话框
 class CKdEnumDlg : public CDialogEx
@@ -33,22 +33,23 @@ protected:
 	DECLARE_MESSAGE_MAP()
 public:
 	// 用于显示
+	CMenu m_Menu;
 	CListCtrl m_list;
-	//用来表示外部函数的地址是否初始化完成的标志
-	BOOL	InitExportFun = FALSE;
+	//用来储存ProcessId / ProcessName 所对应的位置
+	std::map<char*, int> MenuIndex;
 protected:
-	void	initList();
-	VOID	initExportFunc();
-	//使用Create32Snapshot来完成
+	//初始化资源用
+	VOID	InitResource();
+	//用来读入配置文件,如果是第一次使用会创建配置文件
+	VOID	StartUp();
+	VOID	ReloadMenuIndex();
+	//使用Create32Snapshot来完成 || DriverMode || NtQueryProcessInformation
 	BOOL	EnumProcess();
-	//EnumProcess调用InsertList把数据放到页面上
-	VOID	InsertList();
-	ULONG	LookupDebugPort(ULONG	pid);
-	PFN_ZwQueryInformationProcess ZwQueryInformationProcess = NULL;
-	BOOL GetModulePath(ULONG pid, WCHAR path[]);
+	BOOL	GetModulePath(ULONG pid, WCHAR path[]);
 	VOID	TerminateProcessShell(ULONG pid);
 private:
-
+	GLOBAL	g_Global;
+	ENABLE_FLAG	g_EnableFlag;
 public:
 	afx_msg void OnNMRClickList1(NMHDR* pNMHDR, LRESULT* pResult);
 	afx_msg void OnMenuItemUpdata();
