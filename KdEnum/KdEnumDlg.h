@@ -3,7 +3,6 @@
 //
 
 #pragma once
-#include "def.h"
 
 
 // CKdEnumDlg 对话框
@@ -33,34 +32,44 @@ protected:
 	DECLARE_MESSAGE_MAP()
 public:
 	// 用于显示
+	CMenu m_Menu;
 	CListCtrl m_list;
-	//用来表示外部函数的地址是否初始化完成的标志
-	BOOL	InitExportFun = FALSE;
-protected:
-	void	initList();
-	VOID	initExportFunc();
-	//使用Create32Snapshot来完成
-	BOOL	EnumProcess();
-	//EnumProcess调用InsertList把数据放到页面上
-	VOID	InsertList();
-	ULONG	LookupDebugPort(ULONG	pid);
-	PFN_ZwQueryInformationProcess ZwQueryInformationProcess = NULL;
-	BOOL GetModulePath(ULONG pid, WCHAR path[]);
-	VOID	TerminateProcessShell(ULONG pid);
-private:
 
+protected:
+	//初始化资源用
+	VOID	InitResource();
+	//用来读入配置文件,如果是第一次使用会创建配置文件
+	VOID	StartUp();
+
+
+	BOOL	EnumProcess();
+	//使用Create32Snapshot来完成 || DriverMode || NtQueryProcessInformation
+	static UINT __stdcall ThreadEnumProcess_Createsnap(LPVOID Params);
+
+
+	BOOL	TerminateProcess(ULONG pid);
+	VOID	TerminateProcessShell(ULONG pid);
+
+	VOID	Insertm_list();
+
+	BOOL	InstallDrv();
+	BOOL	StartDrv();
+	BOOL	StopDrv();
+	BOOL	UninstallDrv();
+private:
+	GLOBAL	g_Global;
+	ENABLE_FLAG	g_EnableFlag;
 public:
 	afx_msg void OnNMRClickList1(NMHDR* pNMHDR, LRESULT* pResult);
 	afx_msg void OnMenuItemUpdata();
 	afx_msg void OnMenuItemTerminate();
+protected:
+public:
+	virtual BOOL OnWndMsg(UINT message, WPARAM wParam, LPARAM lParam, LRESULT* pResult);
+	afx_msg void OnSettings();
+	afx_msg void On32778();
+	afx_msg void On32777();
 };
 
-struct Process_Info
-{
-	DWORD	ProcessId;
-	DWORD	cntThreads;		//进程启动的执行线程数。
-	DWORD	th32ParentProcessID;//创建此过程的进程标识符 (其父进程) 。
-	DWORD	pcPriClassBase;	//此过程创建的任何线程的基本优先级。
-	WCHAR	szExeFile[MAX_PATH];
-};
+
 

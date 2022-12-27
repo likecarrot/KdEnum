@@ -13,6 +13,12 @@
       <UniqueIdentifier>{67DA6AB6-F800-4c08-8B7A-83BB121AAD01}</UniqueIdentifier>
       <Extensions>rc;ico;cur;bmp;dlg;rc2;rct;bin;rgs;gif;jpg;jpeg;jpe;resx;tiff;tif;png;wav;mfcribbon-ms</Extensions>
     </Filter>
+    <Filter Include="json">
+      <UniqueIdentifier>{7617ac1e-0bef-4c7b-b3a3-1ebb5ae3d230}</UniqueIdentifier>
+    </Filter>
+    <Filter Include="结构类">
+      <UniqueIdentifier>{865f88a3-f664-4808-a828-c8de594af88a}</UniqueIdentifier>
+    </Filter>
   </ItemGroup>
   <ItemGroup>
     <ClInclude Include="KdEnum.h">
@@ -33,7 +39,40 @@
     <ClInclude Include="pch.h">
       <Filter>头文件</Filter>
     </ClInclude>
+    <ClInclude Include="include\json\allocator.h">
+      <Filter>json</Filter>
+    </ClInclude>
+    <ClInclude Include="include\json\assertions.h">
+      <Filter>json</Filter>
+    </ClInclude>
+    <ClInclude Include="include\json\config.h">
+      <Filter>json</Filter>
+    </ClInclude>
+    <ClInclude Include="include\json\forwards.h">
+      <Filter>json</Filter>
+    </ClInclude>
+    <ClInclude Include="include\json\json.h">
+      <Filter>json</Filter>
+    </ClInclude>
+    <ClInclude Include="include\json\json_features.h">
+      <Filter>json</Filter>
+    </ClInclude>
+    <ClInclude Include="include\json\reader.h">
+      <Filter>json</Filter>
+    </ClInclude>
+    <ClInclude Include="include\json\value.h">
+      <Filter>json</Filter>
+    </ClInclude>
+    <ClInclude Include="include\json\version.h">
+      <Filter>json</Filter>
+    </ClInclude>
+    <ClInclude Include="include\json\writer.h">
+      <Filter>json</Filter>
+    </ClInclude>
     <ClInclude Include="def.h">
+      <Filter>结构类</Filter>
+    </ClInclude>
+    <ClInclude Include="SettingsDlg.h">
       <Filter>头文件</Filter>
     </ClInclude>
   </ItemGroup>
@@ -45,6 +84,21 @@
       <Filter>源文件</Filter>
     </ClCompile>
     <ClCompile Include="pch.cpp">
+      <Filter>源文件</Filter>
+    </ClCompile>
+    <ClCompile Include="src\lib_json\json_reader.cpp">
+      <Filter>源文件</Filter>
+    </ClCompile>
+    <ClCompile Include="src\lib_json\json_value.cpp">
+      <Filter>源文件</Filter>
+    </ClCompile>
+    <ClCompile Include="src\lib_json\json_writer.cpp">
+      <Filter>源文件</Filter>
+    </ClCompile>
+    <ClCompile Include="def.cpp">
+      <Filter>结构类</Filter>
+    </ClCompile>
+    <ClCompile Include="SettingsDlg.cpp">
       <Filter>源文件</Filter>
     </ClCompile>
   </ItemGroup>
@@ -62,5 +116,8 @@
     <Image Include="res\KdEnum.ico">
       <Filter>资源文件</Filter>
     </Image>
+  </ItemGroup>
+  <ItemGroup>
+    <Text Include="readme.txt" />
   </ItemGroup>
 </Project>

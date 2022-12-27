@@ -7,11 +7,17 @@
 #include "KdEnum.h"
 #include "KdEnumDlg.h"
 #include "afxdialogex.h"
+#include	"SettingsDlg.h"
 
 #include	<Windows.h>
 #include	<winsvc.h>
 #include	<TlHelp32.h>
-#include	"def.h"
+#include	"include/json/json.h"
+#include	<string>
+#include	<iostream>
+#include	<fstream>
+#include	<map>
+#include	<vector>
 #ifdef _DEBUG
 #define new DEBUG_NEW
 #endif
@@ -48,6 +54,7 @@ void CAboutDlg::DoDataExchange(CDataExchange* pDX)
 }
 
 BEGIN_MESSAGE_MAP(CAboutDlg, CDialogEx)
+
 END_MESSAGE_MAP()
 
 
@@ -76,6 +83,9 @@ BEGIN_MESSAGE_MAP(CKdEnumDlg, CDialogEx)
 	ON_NOTIFY(NM_RCLICK, IDC_LIST1, &CKdEnumDlg::OnNMRClickList1)
 	ON_COMMAND(ID_M_32772, &CKdEnumDlg::OnMenuItemUpdata)
 	ON_COMMAND(ID_32771, &CKdEnumDlg::OnMenuItemTerminate)
+	ON_COMMAND(ID_Settings, &CKdEnumDlg::OnSettings)
+	ON_COMMAND(ID_32778, &CKdEnumDlg::On32778)
+	ON_COMMAND(ID_32777, &CKdEnumDlg::On32777)
 END_MESSAGE_MAP()
 
 
@@ -111,9 +121,10 @@ BOOL CKdEnumDlg::OnInitDialog()
 	SetIcon(m_hIcon, FALSE);		// 设置小图标
 
 	// TODO: 在此添加额外的初始化代码
-	initList();
-	initExportFunc();
+	StartUp();
+	InitResource();
 	EnumProcess();
+	g_Global.MainWnd = this;
 	return TRUE;  // 除非将焦点设置到控件，否则返回 TRUE
 }
 
@@ -141,7 +152,6 @@ void CKdEnumDlg::OnPaint()
 		CPaintDC dc(this); // 用于绘制的设备上下文
 
 		SendMessage(WM_ICONERASEBKGND, reinterpret_cast<WPARAM>(dc.GetSafeHdc()), 0);
-
 		// 使图标在工作区矩形中居中
 		int cxIcon = GetSystemMetrics(SM_CXICON);
 		int cyIcon = GetSystemMetrics(SM_CYICON);
@@ -156,6 +166,7 @@ void CKdEnumDlg::OnPaint()
 	else
 	{
 		CDialogEx::OnPaint();
+		Insertm_list();
 	}
 }
 
@@ -166,104 +177,350 @@ HCURSOR CKdEnumDlg::OnQueryDragIcon()
 	return static_cast<HCURSOR>(m_hIcon);
 }
 
-void CKdEnumDlg::initList()
+void CKdEnumDlg::InitResource()
 {
+	//初始化表格
 	m_list.SetExtendedStyle(LVS_EX_GRIDLINES | LVS_EX_FULLROWSELECT);
 	m_list.InsertColumn(0, L"进程名", 0, 130);
+
+
 	m_list.InsertColumn(1, L"进程id", 0, 50);
+
 	m_list.InsertColumn(2, L"父进程id", 0, 60);
+
 	m_list.InsertColumn(3, L"优先级", 0, 50);
+
 	m_list.InsertColumn(4, L"线程数量", 0, 60);
-	m_list.InsertColumn(5, L"文件路径", 0, 300);
+
+	m_list.InsertColumn(5, L"DebugPort", 0, 80);
+
+	m_list.InsertColumn(6, L"文件路径", 0, 300);
+
+	m_Menu.LoadMenuW(IDR_MENU2);
+	SetMenu(&m_Menu);
+
 }
 
-VOID CKdEnumDlg::initExportFunc()
+VOID CKdEnumDlg::StartUp()
 {
-	HMODULE	hModule = LoadLibrary(L"ntdll.dll");
-	if (hModule == INVALID_HANDLE_VALUE)
-	{
-		CKdEnumDlg::InitExportFun = FALSE;
-	}
-	CKdEnumDlg::ZwQueryInformationProcess = (PFN_ZwQueryInformationProcess)GetProcAddress(hModule, "ZwQueryInformationProcess");
-	if (ZwQueryInformationProcess == 0)
-	{
-		CKdEnumDlg::InitExportFun = FALSE;
+	if (SHGetFolderPath(NULL, CSIDL_APPDATA, NULL, 0, g_Global.AppdataPath) == S_OK) {
+		HANDLE	hFile = NULL;
+		wsprintf(g_Global.ConfigFilePath, L"%ws\\kdEnum\\config.json", g_Global.AppdataPath);
+		wsprintf(g_Global.ConfigPath, L"%ws\\kdEnum", g_Global.AppdataPath);
+		hFile = CreateFile(g_Global.ConfigFilePath, GENERIC_READ | GENERIC_WRITE,
+			FILE_SHARE_DELETE | FILE_SHARE_READ, NULL, OPEN_EXISTING, FILE_ATTRIBUTE_NORMAL, NULL);
+		if (hFile == INVALID_HANDLE_VALUE)
+		{//第一次打开程序
+			CreateDirectory(g_Global.ConfigPath, NULL);
+			hFile = CreateFile(g_Global.ConfigFilePath, GENERIC_READ | GENERIC_WRITE,
+				FILE_SHARE_DELETE | FILE_SHARE_READ, NULL, CREATE_NEW, FILE_ATTRIBUTE_NORMAL, NULL);
+			DWORD	ret = 0;
+			WriteFile(hFile, g_Global.DefaultConfig, strlen(g_Global.DefaultConfig), &ret, 0);
+		}
+		CloseHandle(hFile);
 
+		//加载config.json
+		Json::Reader	reader;
+		Json::Value	root;
+		using namespace std;
+		std::ifstream	file;
+		file.open(g_Global.ConfigFilePath, ios::in | ios::out);
+		if (file.is_open())
+		{//文件流已经打开
+			if (reader.parse(file, root, false)) {
+				g_EnableFlag.enum_mode = root["mode"].asInt();
+				g_EnableFlag.terminate_mode = root["terminateMode"].asInt();
+				g_EnableFlag.DebugPortOffset = root["offset"]["DebugPortOffset"].asInt();
+				g_EnableFlag.ProcessNameOffset = root["offset"]["ProcessNameOffset"].asInt();
+			}
+			file.close();
+		}
 	}
 
-	CKdEnumDlg::InitExportFun = TRUE;
+	return;
 }
 
 BOOL CKdEnumDlg::EnumProcess()
 {
-
-	PROCESSENTRY32	PeEntry = { 0 };
-	HANDLE	hSnap = NULL;
-	PeEntry.dwSize = sizeof(PROCESSENTRY32);
-	hSnap = CreateToolhelp32Snapshot(TH32CS_SNAPPROCESS, 0);
-	if (hSnap == INVALID_HANDLE_VALUE)
+	if (g_EnableFlag.enum_mode == Enum_TPYE::UserMode)
 	{
+		AfxBeginThread(ThreadEnumProcess_Createsnap, &g_Global, THREAD_PRIORITY_NORMAL, 0, 0, 0);
+		return	TRUE;
+	}
+	if (g_EnableFlag.enum_mode == Enum_TPYE::NtQueryInformationProcess)
+	{
+		return	TRUE;
+	}
+	if (g_EnableFlag.enum_mode == Enum_TPYE::DriverMode)
+	{
+		return	TRUE;
+	}
+}
+
+VOID CKdEnumDlg::Insertm_list()
+{
+	g_Global.DataLock.lock();
+	if (g_Global.ProcessData.empty()) {
+		g_Global.DataLock.unlock();
+		return;
+	}
+	int i = 0;
+	std::vector<MY_PROCESS_INFO>::iterator it = g_Global.ProcessData.begin();
+	std::vector<MY_PROCESS_INFO>::iterator bt = g_Global.ProcessData.end();
+	WCHAR	Processid[MAX_PATH], ParentId[MAX_PATH], Priority[MAX_PATH], ThreadNums[MAX_PATH], DebugPort[MAX_PATH];
+	int index = 0;
+	while (it != bt) {
+		wsprintf(Processid, L"%d", it->ProcessId);
+		wsprintf(ParentId, L"%d", it->ParentId);
+		wsprintf(Priority, L"%d", it->Priority);
+		wsprintf(ThreadNums, L"%d", it->ThreadNums);
+
+		m_list.InsertItem(index, it->ProcessName);
+		m_list.SetItemText(index, 1, Processid);
+		m_list.SetItemText(index, 2, ParentId);
+		m_list.SetItemText(index, 3, Priority);
+		m_list.SetItemText(index, 4, ThreadNums);
+		m_list.SetItemText(index, 5, it->DebugPort);
+		m_list.SetItemText(index, 6, it->ProcessPath);
+		/*if (g_EnableFlag.Enable_ProcessId)
+		{
+
+		}
+		if (g_EnableFlag.Enable_ParentId)
+		{
+		}
+		if (g_EnableFlag.Enable_Priority)
+		{
+		}
+		if (g_EnableFlag.Enable_ThreadNums)
+		{
+		}
+		if (g_EnableFlag.Enable_Debugport)
+		{
+		}
+		if (g_EnableFlag.Enable_ProcessPath)
+		{
+		}*/
+		it++;
+		index++;
+	}
+	g_Global.DataLock.unlock();
+	g_Global.ProcessData.clear();
+}
+
+BOOL CKdEnumDlg::InstallDrv()
+{
+#ifdef DEBUG
+	return	true;
+#endif
+	SC_HANDLE	scgManager = OpenSCManager(NULL, NULL, SC_MANAGER_ALL_ACCESS);
+	if (scgManager == NULL)
+	{
+		CloseServiceHandle(scgManager);
 		return	FALSE;
 	}
-	BOOL ret = Process32First(hSnap, &PeEntry);
-	WCHAR cntThreads[MAX_PATH], pcPriClassBase[MAX_PATH], \
-		ProcessId[MAX_PATH], th32ParentProcessID[MAX_PATH], ProcessName[MAX_PATH];
-	WCHAR	processpath[MAX_PATH];
-	ULONG	index = 0;
-	while (ret)
-	{
-		wsprintf(cntThreads, L"%d", PeEntry.cntThreads);
-		wsprintf(pcPriClassBase, L"%d", PeEntry.pcPriClassBase);
-		wsprintf(ProcessId, L"%d", PeEntry.th32ProcessID);
-		wsprintf(th32ParentProcessID, L"%d", PeEntry.th32ParentProcessID);
-		m_list.InsertItem(index, PeEntry.szExeFile);
-		m_list.SetItemText(index, 1, ProcessId);
-		m_list.SetItemText(index, 2, th32ParentProcessID);
-		m_list.SetItemText(index, 3, pcPriClassBase);
-		m_list.SetItemText(index, 4, cntThreads);
-		GetModulePath(PeEntry.th32ProcessID, processpath);
-		m_list.SetItemText(index, 5, processpath);
-		index++;
-		ret = Process32Next(hSnap, &PeEntry);
+	// 创建服务对象，添加至服务控制管理器数据库
+	SC_HANDLE schService = CreateService(
+		scgManager,               // 服务控件管理器数据库的句柄
+		g_Global.DriverName,        // 要安装的服务的名称
+		g_Global.DriverName,                // 用户界面程序用来标识服务的显示名称
+		SERVICE_ALL_ACCESS,         // 对服务的访问权限：所有全权限
+		SERVICE_KERNEL_DRIVER,      // 服务类型：驱动服务
+		SERVICE_DEMAND_START,       // 服务启动选项：进程调用 StartService 时启动
+		SERVICE_ERROR_IGNORE,       // 如果无法启动：忽略错误继续运行
+		g_Global.DriverPath,        // 驱动文件绝对路径，如果包含空格需要多加双引号
+		NULL,                       // 服务所属的负载订购组：服务不属于某个组
+		NULL,                       // 接收订购组唯一标记值：不接收
+		NULL,                       // 服务加载顺序数组：服务没有依赖项
+		NULL,                       // 运行服务的账户名：使用 LocalSystem 账户
+		NULL                        // LocalSystem 账户密码
+	);
+	if (schService == NULL) {
+		CloseServiceHandle(schService);
+		CloseServiceHandle(scgManager);
+		return FALSE;
 	}
-	return	TRUE;
-}
 
-VOID CKdEnumDlg::InsertList()
-{
-}
 
-ULONG CKdEnumDlg::LookupDebugPort(ULONG pid)
-{
-
+	CloseServiceHandle(schService);
+	CloseServiceHandle(scgManager);
+	return TRUE;
 	return 0;
 }
 
-BOOL CKdEnumDlg::GetModulePath(ULONG pid, WCHAR path[])
+BOOL CKdEnumDlg::StartDrv()
 {
-	if (pid == 0)
+#ifdef DEBUG
+	return	true;
+#endif
+	// 打开服务控制管理器数据库
+	SC_HANDLE schSCManager = OpenSCManager(
+		NULL,                   // 目标计算机的名称,NULL：连接本地计算机上的服务控制管理器
+		NULL,                   // 服务控制管理器数据库的名称，NULL：打开 SERVICES_ACTIVE_DATABASE 数据库
+		SC_MANAGER_ALL_ACCESS   // 所有权限
+	);
+	if (schSCManager == NULL) {
+		CloseServiceHandle(schSCManager);
+		return FALSE;
+	}
+
+	// 打开服务
+	SC_HANDLE hs = OpenService(
+		schSCManager,           // 服务控件管理器数据库的句柄
+		g_Global.DriverName,            // 要打开的服务名
+		SERVICE_ALL_ACCESS      // 服务访问权限：所有权限
+	);
+	if (hs == NULL) {
+		CloseServiceHandle(hs);
+		CloseServiceHandle(schSCManager);
+		return FALSE;
+	}
+	if (StartService(hs, 0, 0) == 0) {
+		CloseServiceHandle(hs);
+		CloseServiceHandle(schSCManager);
+		return FALSE;
+	}
+
+
+	CloseServiceHandle(hs);
+	CloseServiceHandle(schSCManager);
+	return TRUE;
+
+}
+
+BOOL CKdEnumDlg::StopDrv()
+{
+	// 打开服务控制管理器数据库
+	SC_HANDLE schSCManager = OpenSCManager(
+		NULL,                   // 目标计算机的名称,NULL：连接本地计算机上的服务控制管理器
+		NULL,                   // 服务控制管理器数据库的名称，NULL：打开 SERVICES_ACTIVE_DATABASE 数据库
+		SC_MANAGER_ALL_ACCESS   // 所有权限
+	);
+	if (schSCManager == NULL) {
+		CloseServiceHandle(schSCManager);
+		return FALSE;
+	}
+
+	// 打开服务
+	SC_HANDLE hs = OpenService(
+		schSCManager,           // 服务控件管理器数据库的句柄
+		g_Global.DriverName,            // 要打开的服务名
+		SERVICE_ALL_ACCESS      // 服务访问权限：所有权限
+	);
+	if (hs == NULL) {
+		CloseServiceHandle(hs);
+		CloseServiceHandle(schSCManager);
+		return FALSE;
+	}
+
+	// 如果服务正在运行
+	SERVICE_STATUS status;
+	if (QueryServiceStatus(hs, &status) == 0) {
+		CloseServiceHandle(hs);
+		CloseServiceHandle(schSCManager);
+		return FALSE;
+	}
+	if (status.dwCurrentState != SERVICE_STOPPED &&
+		status.dwCurrentState != SERVICE_STOP_PENDING
+		) {
+		// 发送关闭服务请求
+		if (ControlService(
+			hs,                         // 服务句柄
+			SERVICE_CONTROL_STOP,       // 控制码：通知服务应该停止
+			&status                     // 接收最新的服务状态信息
+		) == 0) {
+			CloseServiceHandle(hs);
+			CloseServiceHandle(schSCManager);
+			return FALSE;
+		}
+
+		// 判断超时
+		INT timeOut = 0;
+		while (status.dwCurrentState != SERVICE_STOPPED) {
+			timeOut++;
+			QueryServiceStatus(hs, &status);
+			Sleep(50);
+		}
+		if (timeOut > 80) {
+			CloseServiceHandle(hs);
+			CloseServiceHandle(schSCManager);
+			return FALSE;
+		}
+	}
+
+	CloseServiceHandle(hs);
+	CloseServiceHandle(schSCManager);
+	return TRUE;
+}
+
+BOOL CKdEnumDlg::UninstallDrv()
+{
+	// 打开服务控制管理器数据库
+	SC_HANDLE schSCManager = OpenSCManager(
+		NULL,                   // 目标计算机的名称,NULL：连接本地计算机上的服务控制管理器
+		NULL,                   // 服务控制管理器数据库的名称，NULL：打开 SERVICES_ACTIVE_DATABASE 数据库
+		SC_MANAGER_ALL_ACCESS   // 所有权限
+	);
+	if (schSCManager == NULL) {
+		CloseServiceHandle(schSCManager);
+		return FALSE;
+	}
+
+	// 打开服务
+	SC_HANDLE hs = OpenService(
+		schSCManager,           // 服务控件管理器数据库的句柄
+		g_Global.DriverName,            // 要打开的服务名
+		SERVICE_ALL_ACCESS      // 服务访问权限：所有权限
+	);
+	if (hs == NULL) {
+		CloseServiceHandle(hs);
+		CloseServiceHandle(schSCManager);
+		return FALSE;
+	}
+
+	// 删除服务
+	if (DeleteService(hs) == 0) {
+		CloseServiceHandle(hs);
+		CloseServiceHandle(schSCManager);
+		return FALSE;
+	}
+
+	CloseServiceHandle(hs);
+	CloseServiceHandle(schSCManager);
+	return TRUE;
+}
+
+UINT CKdEnumDlg::ThreadEnumProcess_Createsnap(LPVOID Params)
+{
+	GLOBAL* g = (GLOBAL*)Params;
+	g->EnumProcess_CreateSnapshot();
+	return 0;
+}
+
+
+
+BOOL CKdEnumDlg::TerminateProcess(ULONG pid)
+{
+	if (g_EnableFlag.terminate_mode == Terminat_TYPE::Shell)
 	{
-		wcscpy_s(path, MAX_PATH, L"[System Path]");
+		TerminateProcessShell(pid);
 		return	TRUE;
 	}
-	MODULEENTRY32	mo = { 0 };
-	mo.dwSize = sizeof(MODULEENTRY32);
-	HANDLE hModule = CreateToolhelp32Snapshot(TH32CS_SNAPMODULE | TH32CS_SNAPMODULE32, pid);
-	if (hModule == INVALID_HANDLE_VALUE)
+	if (g_EnableFlag.terminate_mode == Terminat_TYPE::WinR3API)
 	{
-		int roo = GetLastError();
-		return	 FALSE;
+		return	TRUE;
 	}
-	Module32First(hModule, &mo);
-	CloseHandle(hModule);
-	wcscpy_s(path, MAX_PATH, mo.szExePath);
-	return	TRUE;
+	if (g_EnableFlag.terminate_mode == Terminat_TYPE::WinR0API)
+	{
+		return	TRUE;
+	}
+	return FALSE;
 }
 
 VOID CKdEnumDlg::TerminateProcessShell(ULONG pid)
 {
 	CHAR	cmd[256];
-	sprintf_s(cmd,"taskkill /pid %d /F",pid);
+	sprintf_s(cmd, "taskkill /pid %d /F", pid);
 	system(cmd);
 	return VOID();
 }
@@ -308,7 +565,76 @@ void CKdEnumDlg::OnMenuItemTerminate()
 	int m_nIndex = m_list.GetNextSelectedItem(m_pstion);
 	CString i = m_list.GetItemText(m_nIndex, 1);
 	ULONG	pid = _wtoi(i);
-	TerminateProcessShell(pid);
+	TerminateProcess(pid);
 	m_list.DeleteAllItems();
 	EnumProcess();
 }
+
+
+BOOL CKdEnumDlg::OnWndMsg(UINT message, WPARAM wParam, LPARAM lParam, LRESULT* pResult)
+{
+	Json::Reader	reader;
+	Json::Value	root;
+	using namespace std;
+	std::ofstream	file;
+	static string	config = g_Global.DefaultConfig;
+	::ENABLE_FLAG* p;
+	// TODO: 在此添加专用代码和/或调用基类
+	switch (message)
+	{
+	case	WM_MSG_UPDATEConfig:
+		p = (ENABLE_FLAG*)wParam;
+		if (p->terminate_mode != g_EnableFlag.terminate_mode || p->enum_mode != g_EnableFlag.enum_mode)
+		{
+			file.open(g_Global.ConfigFilePath, ios::in | ios::out | ios::_Nocreate);
+			if (reader.parse(config, root)) {
+				root["mode"] = p->enum_mode;
+				root["terminateMode"] = p->terminate_mode;
+			}
+			if (file.is_open())
+			{//文件流已经打开
+				file << root.toStyledString() << endl;
+				file.close();
+				AfxMessageBox(L"请重新启动程序", MB_OK, 0);
+			}
+		}
+		break;
+	default:
+		break;
+	}
+	return CDialogEx::OnWndMsg(message, wParam, lParam, pResult);
+}
+
+
+void CKdEnumDlg::OnSettings()
+{
+	// TODO: 在此添加命令处理程序代码// TODO: 在此添加命令处理程序代码
+	SettingsDlg	dlg;
+	//dlg.SendMessage(WM_MSG_Enable_ToSettingsDlg, (WPARAM)&g_EnableFlag, 0);
+	dlg.DoModal();
+}
+
+
+void CKdEnumDlg::On32777()
+{
+	// TODO: 在此添加命令处理程序代码
+	//加载驱动
+	if (InstallDrv())
+		if (StartDrv()) {
+
+		}
+		else
+		{
+			AfxMessageBox(L"驱动启动失败", MB_OK, 0);
+		}
+	else {
+		AfxMessageBox(L"驱动加载失败", MB_OK, 0);
+	}
+}
+
+void CKdEnumDlg::On32778()
+{
+	// TODO: 在此添加命令处理程序代码
+	//测试连接
+}
+
