@@ -1,0 +1,39 @@
+﻿
+Microsoft Visual Studio Solution File, Format Version 12.00
+# Visual Studio Version 16
+VisualStudioVersion = 16.0.31911.196
+MinimumVisualStudioVersion = 10.0.40219.1
+Project("{8BC9CEB8-8B4A-11D0-8D11-00A0C91BC942}") = "KdEnum", "KdEnum\KdEnum.vcxproj", "{1F956050-336F-4B68-B83D-6CFA455088D7}"
+EndProject
+Global
+	GlobalSection(SolutionConfigurationPlatforms) = preSolution
+		Debug|ARM = Debug|ARM
+		Debug|ARM64 = Debug|ARM64
+		Debug|x64 = Debug|x64
+		Debug|x86 = Debug|x86
+		Release|ARM = Release|ARM
+		Release|ARM64 = Release|ARM64
+		Release|x64 = Release|x64
+		Release|x86 = Release|x86
+	EndGlobalSection
+	GlobalSection(ProjectConfigurationPlatforms) = postSolution
+		{1F956050-336F-4B68-B83D-6CFA455088D7}.Debug|ARM.ActiveCfg = Debug|Win32
+		{1F956050-336F-4B68-B83D-6CFA455088D7}.Debug|ARM64.ActiveCfg = Debug|Win32
+		{1F956050-336F-4B68-B83D-6CFA455088D7}.Debug|x64.ActiveCfg = Debug|x64
+		{1F956050-336F-4B68-B83D-6CFA455088D7}.Debug|x64.Build.0 = Debug|x64
+		{1F956050-336F-4B68-B83D-6CFA455088D7}.Debug|x86.ActiveCfg = Debug|Win32
+		{1F956050-336F-4B68-B83D-6CFA455088D7}.Debug|x86.Build.0 = Debug|Win32
+		{1F956050-336F-4B68-B83D-6CFA455088D7}.Release|ARM.ActiveCfg = Release|Win32
+		{1F956050-336F-4B68-B83D-6CFA455088D7}.Release|ARM64.ActiveCfg = Release|Win32
+		{1F956050-336F-4B68-B83D-6CFA455088D7}.Release|x64.ActiveCfg = Release|x64
+		{1F956050-336F-4B68-B83D-6CFA455088D7}.Release|x64.Build.0 = Release|x64
+		{1F956050-336F-4B68-B83D-6CFA455088D7}.Release|x86.ActiveCfg = Release|Win32
+		{1F956050-336F-4B68-B83D-6CFA455088D7}.Release|x86.Build.0 = Release|Win32
+	EndGlobalSection
+	GlobalSection(SolutionProperties) = preSolution
+		HideSolutionNode = FALSE
+	EndGlobalSection
+	GlobalSection(ExtensibilityGlobals) = postSolution
+		SolutionGuid = {E1F64742-D438-413C-A7F4-D269D6261C2E}
+	EndGlobalSection
+EndGlobal
